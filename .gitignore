@@ -1,0 +1,4 @@
+.idea
+
+./dwn/*
+!./dwn/.gitkeep

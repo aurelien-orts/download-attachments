@@ -1,0 +1,15 @@
+version: '3.4'
+
+services:
+  download-attachments:
+    build:
+      context: .
+    image: ortys4/download-attachments:latest
+    environment:
+      - ATTACHMENTS_MAILBOX='{imap.gmail.com:993/imap/ssl}INBOX'
+      - ATTACHMENTS_USER='aurelien.orts@gmail.com'
+      - ATTACHMENTS_PASS='oymmpwgyjamzgwis'
+      - ATTACHMENTS_QUERY='UNSEEN'
+    volumes:
+      - ./dwn:/var/www/html/dwn:rw
+      - ./src:/var/www/html/src:rw
