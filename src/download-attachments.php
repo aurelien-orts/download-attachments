@@ -11,9 +11,13 @@ $username = $_ENV['ATTACHMENTS_USER'];
 $password = $_ENV['ATTACHMENTS_PASS'];
 $criteria = $_ENV['ATTACHMENTS_QUERY'];
 
-$inbox = imap_open($mailbox, $username, $password) or die('Cannot connect to Gmail: '.imap_last_error());
-
+$inbox = imap_open($mailbox, $username, $password, OP_READONLY) or die('Cannot connect to Gmail: '.imap_last_error());
 $emails = imap_search($inbox, $criteria); // finds all incoming mail from "person" containing partial text in subject 'something in subject'
+
+if (false === $emails) {
+    echo "Error in imap query";
+    exit;
+}
 
 if (is_array($emails) && 0 === count($emails)) {
     imap_close($inbox);
@@ -22,75 +26,89 @@ if (is_array($emails) && 0 === count($emails)) {
     exit;
 }
 
-if (false === $emails) {
-    imap_close($inbox);
-
-    echo "Error in imap query";
-    exit;
-}
-
 
 $count = 1;
 rsort($emails);
 foreach ($emails as $email_number) {
     $overview = imap_fetch_overview($inbox, $email_number, 0);
+
+    $subject = mb_decode_mimeheader($overview[0]->subject);
+    $date = (new DateTime($overview[0]->date))->format('Y-m-d');
+
     $message = imap_fetchbody($inbox, $email_number, 2);
     $structure = imap_fetchstructure($inbox, $email_number);
 
-        foreach ($structure->parts as $i => $part) {
-            $attachments[$i] = array(
-                'is_attachment' => false,
-                'filename' => '',
-                'name' => '',
-                'attachment' => ''
-            );
+    if (!is_iterable($structure->parts)) {
+        echo "skip";
+        continue;
+    }
 
-            if ($structure->parts[$i]->dparameters) {
-                foreach ($structure->parts[$i]->dparameters as $object) {
-                    if (strtolower($object->attribute) == 'filename') {
-                        $attachments[$i]['is_attachment'] = true;
-                        $attachments[$i]['filename'] = $object->value;
-                    }
+    foreach ($structure->parts as $i => $part) {
+        $attachments[$i] = [
+            'is_attachment' => false,
+            'filename' => '',
+            'name' => '',
+            'attachment' => ''
+        ];
+
+        if ($part->dparameters) {
+            foreach ($part->dparameters as $object) {
+                if (strtolower($object->attribute) == 'filename') {
+                    $attachments[$i]['is_attachment'] = true;
+                    $attachments[$i]['filename'] = $object->value;
                 }
             }
+        }
 
-            if ($structure->parts[$i]->ifparameters) {
-                foreach ($structure->parts[$i]->parameters as $object) {
-                    if (strtolower($object->attribute) == 'name') {
-                        $attachments[$i]['is_attachment'] = true;
-                        $attachments[$i]['name'] = $object->value;
-                    }
+        if ($part->ifparameters) {
+            foreach ($part->parameters as $object) {
+                if (strtolower($object->attribute) == 'name') {
+                    $attachments[$i]['is_attachment'] = true;
+                    $attachments[$i]['name'] = $object->value;
                 }
             }
+        }
 
-            if ($attachments[$i]['is_attachment']) {
-                $attachments[$i]['attachment'] = imap_fetchbody($inbox, $email_number, $i + 1);
-
-                if ($structure->parts[$i]->encoding == 3) {
-                    $attachments[$i]['attachment'] = base64_decode($attachments[$i]['attachment']);
-                } elseif ($structure->parts[$i]->encoding == 4) {
-                    $attachments[$i]['attachment'] = quoted_printable_decode($attachments[$i]['attachment']);
-                }
+        if ($attachments[$i]['is_attachment']) {
+            $attachment = imap_fetchbody($inbox, $email_number, $i + 1);
+            if ($part->encoding == 3) {
+                $attachments[$i]['attachment'] = base64_decode($attachment);
+            } elseif ($part->encoding == 4) {
+                $attachments[$i]['attachment'] = quoted_printable_decode($attachment);
             }
         }
     }
 
+    if ($attachments || !is_iterable($attachments)) {
+        continue;
+    }
+
     //Filter sur les PDF seulement
     //Renommer les fichiers date - sujet
-    foreach ($attachments as $attachment) {
-        if ($attachment['is_attachment'] == 1) {
-            $filename = $attachment['name'];
-            if (empty($filename)) $filename = $attachment['filename'];
+    foreach ($attachments as $i => $attachment) {
+        if (true === $attachment['is_attachment']) {
+            $filename = $attachment['name'] ?? $attachment['filename'];
+            $extension = strtolower(pathinfo($filename)['extension']);
 
-            if (empty($filename)) $filename = time().".dat";
+            if (in_array($extension, ['jpg','png','gif',])) {
+                echo($filename.' skiped'.PHP_EOL);
+                continue;
+            }
 
-            echo($filename." ");
+            $filename = sprintf('%s - %s (%s).%s',
+                $date,
+                $subject,
+                $i,
+                $extension
+            );
 
-            if (file_exists($email_number."-".$filename)) {
-                echo(".. file already exists! \n");
+            echo($filename);
+
+            if (file_exists($filename)) {
+                echo('.. file already exists!'.PHP_EOL);
             } else {
-                echo(".. saving \n");
-                $fp = fopen('dwn/'.$email_number."-".$filename, "w+");
+                echo('.. saving'.PHP_EOL);
+                $fp = fopen('dwn/'.$filename, "w+");
                 fwrite($fp, $attachment['attachment']);
                 fclose($fp);
             }
