@@ -11,18 +11,20 @@ $username = $_ENV['ATTACHMENTS_USER'];
 $password = $_ENV['ATTACHMENTS_PASS'];
 $criteria = $_ENV['ATTACHMENTS_QUERY'];
 
+echo 'Starting...'.PHP_EOL;
+
 $inbox = imap_open($mailbox, $username, $password, OP_READONLY) or die('Cannot connect to Gmail: '.imap_last_error());
 $emails = imap_search($inbox, $criteria); // finds all incoming mail from "person" containing partial text in subject 'something in subject'
 
 if (false === $emails) {
-    echo "Error in imap query";
-    exit;
+    echo 'Error in imap query';
+    exit(1);
 }
 
 if (is_array($emails) && 0 === count($emails)) {
     imap_close($inbox);
 
-    echo "No mail found";
+    echo 'No mail found';
     exit;
 }
 
@@ -39,7 +41,6 @@ foreach ($emails as $email_number) {
     $structure = imap_fetchstructure($inbox, $email_number);
 
     if (!is_iterable($structure->parts)) {
-        echo "skip";
         continue;
     }
 
@@ -79,7 +80,7 @@ foreach ($emails as $email_number) {
         }
     }
 
-    if ($attachments || !is_iterable($attachments)) {
+    if (!$attachments || !is_iterable($attachments)) {
         continue;
     }
 
@@ -118,5 +119,5 @@ foreach ($emails as $email_number) {
 
 imap_close($inbox);
 
-echo "Done";
+echo 'Done'.PHP_EOL;
 
