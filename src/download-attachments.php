@@ -32,13 +32,13 @@ if (is_array($emails) && 0 === count($emails)) {
 $count = 1;
 rsort($emails);
 foreach ($emails as $email_number) {
+    $attachments = [];
     $overview = imap_fetch_overview($inbox, $email_number, 0);
+    $message = imap_fetchbody($inbox, $email_number, 2);
+    $structure = imap_fetchstructure($inbox, $email_number);
 
     $subject = mb_decode_mimeheader($overview[0]->subject);
     $date = (new DateTime($overview[0]->date))->format('Y-m-d');
-
-    $message = imap_fetchbody($inbox, $email_number, 2);
-    $structure = imap_fetchstructure($inbox, $email_number);
 
     if (!is_iterable($structure->parts)) {
         continue;
@@ -84,8 +84,6 @@ foreach ($emails as $email_number) {
         continue;
     }
 
-    //Filter sur les PDF seulement
-    //Renommer les fichiers date - sujet
     foreach ($attachments as $i => $attachment) {
         if (true === $attachment['is_attachment']) {
             $filename = $attachment['name'] ?? $attachment['filename'];
