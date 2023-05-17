@@ -28,11 +28,9 @@ if (is_array($emails) && 0 === count($emails)) {
     exit;
 }
 
-
-$count = 1;
 rsort($emails);
 foreach ($emails as $email_number) {
-    $attachments = [];
+    $attachments = null;
     $overview = imap_fetch_overview($inbox, $email_number, 0);
     $message = imap_fetchbody($inbox, $email_number, 2);
     $structure = imap_fetchstructure($inbox, $email_number);
